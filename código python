@@ -1,0 +1,135 @@
+import numpy as np
+from scipy.stats import poisson
+import math
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# DADOS RETIRADOS DO SITE: https://www.usgs.gov/programs/earthquake-hazards, COM A ADIÇÃO DA TABELA 'COUNTRY' E 'TEMPO'
+
+arquivo_csv = '/content/dados - query.csv.csv'
+
+print('Esse é um sistema que lhe informa as probabilidade de ocorrência de um evento sismico de escala 6,5+ ocorrerem na região que você desejar ')
+df = pd.read_csv(arquivo_csv)
+
+while True:
+    print("\nEscolha uma das opções a seguir:")
+    print("1. Calcular a probabilidade de ocorrência de um evento sísmico")
+    print("2. Consultar informações sobre um terremoto específico pelo ID")
+
+    try:
+        escolha = int(input("Digite o número da sua escolha: "))
+        if escolha == 1 or escolha == 2:
+            break
+        else:
+            print("\nEscolha inválida. Por favor, escolha 1 ou 2.")
+    except ValueError:
+        print("\nEntrada inválida. Por favor, insira um número.")
+
+
+if escolha == 1:
+    # Aqui a gente puxa do repositório o nome dos paises disponiveis para listagem
+    paises_disponiveis = list(df['Country'].unique()) + ['Todos']
+
+    # Função para selecionar um país
+    def selecionar_pais(mensagem):
+        while True:
+            print(mensagem)
+            for i, pais in enumerate(paises_disponiveis, 1):
+                print(f"{i}. {pais}")
+
+            try:
+                escolha_pais = int(input("Escolha o número correspondente ao país: "))
+                if escolha_pais < 1 or escolha_pais > len(paises_disponiveis):
+                    print("\nEscolha inválida. Por favor, escolha um número dentro do intervalo válido.")
+                else:
+                    return paises_disponiveis[escolha_pais - 1]
+            except ValueError:
+                print("\nEntrada inválida. Por favor, insira um número.")
+
+    pais_selecionado_1 = selecionar_pais("\nPaíses disponíveis para análise (Primeiro país):")
+    pais_selecionado_2 = selecionar_pais("\nPaíses disponíveis para análise (Segundo país):")
+
+    # Filtrar os dados conforme os países escolhidos
+    if pais_selecionado_1 == 'Todos':
+        df_pais_1 = df
+    else:
+        df_pais_1 = df[df['Country'] == pais_selecionado_1]
+
+    if pais_selecionado_2 == 'Todos':
+        df_pais_2 = df
+    else:
+        df_pais_2 = df[df['Country'] == pais_selecionado_2]
+
+    # Solicitamos o usuário para escolher um número de 1 a 20 que vai representar a quantidade em anos que ele deseja saber a probabilidade
+    while True:
+        try:
+            Tempo = int(input('\nTotal de tempo que você quer analisar em anos (de 1 à 20): '))
+            if Tempo < 1 or Tempo > 20:
+                print("\nEscolha inválida. Por favor, escolha um número dentro do intervalo válido.")
+            else:
+                break
+        except ValueError:
+            print("\nEntrada inválida. Por favor, insira um número.")
+
+    # Função para calcular a probabilidade para um determinado país
+    def calcular_probabilidade(df_pais, Tempo, eventos):
+        df_pais_tempo = df_pais[df_pais['Tempo'] <= Tempo]
+        quantidade_linhas = len(df_pais_tempo)
+        lambda_param = quantidade_linhas / Tempo
+        p = poisson.pmf(1, lambda_param * Tempo)
+        n = Tempo
+        k = eventos
+        if n > k:
+            binom_coeff = math.comb(n, k)
+        else:
+            binom_coeff = math.comb(k, n)
+        prob = binom_coeff * (p**k) * ((1-p)**(n-k))
+        return quantidade_linhas, prob
+
+    quantidade_linhas_1, _ = calcular_probabilidade(df_pais_1, Tempo, 0)
+    quantidade_linhas_2, _ = calcular_probabilidade(df_pais_2, Tempo, 0)
+
+    print(f'\nO número de eventos sísmicos com magnitude 6,5 ou maior que ocorreram em {Tempo} anos em {pais_selecionado_1} é: {quantidade_linhas_1}')
+    print(f'\nO número de eventos sísmicos com magnitude 6,5 ou maior que ocorreram em {Tempo} anos em {pais_selecionado_2} é: {quantidade_linhas_2}')
+
+    eventos = int(input(f'\nNúmero de eventos sísmicos com magnitude 6,5 ou maior que você deseja prever nos próximos {Tempo} anos: '))
+
+    quantidade_linhas_1, prob_1 = calcular_probabilidade(df_pais_1, Tempo, eventos)
+    quantidade_linhas_2, prob_2 = calcular_probabilidade(df_pais_2, Tempo, eventos)
+
+    print(f'\nA probabilidade de {eventos} eventos sísmicos com magnitude 6,5 ou maior ocorrerem nos próximos {Tempo} anos em {pais_selecionado_1} é: {prob_1}')
+    print(f'\nA probabilidade de {eventos} eventos sísmicos com magnitude 6,5 ou maior ocorrerem nos próximos {Tempo} anos em {pais_selecionado_2} é: {prob_2}\n\n\n')
+
+elif escolha == 2:
+    while True:
+        id_terremoto = input("Digite o ID do terremoto que você deseja consultar: ")
+        terremoto = df[df['id'] == id_terremoto]
+        if terremoto.empty:
+            print(f"\nNenhum terremoto encontrado com o ID {id_terremoto}. Por favor, insira um ID válido.")
+        else:
+            print(f"\nInformações do terremoto com ID {id_terremoto}:")
+            print(terremoto.to_string(index=False))
+            break
+
+if escolha == 1:
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 6))
+
+    ax1.scatter(df_pais_1['Tempo'], df_pais_1['depth'], color='blue', alpha=0.5, label=pais_selecionado_1)
+    ax1.scatter(df_pais_2['Tempo'], df_pais_2['depth'], color='red', alpha=0.5, label=pais_selecionado_2)
+    ax1.set_title('Profundidade dos Abalos Sísmicos ao Longo do Tempo')
+    ax1.set_xlabel('Tempo (anos)')
+    ax1.set_ylabel('Profundidade (km)')
+    ax1.grid(True)
+    ax1.set_ylim([0, 700])
+    ax1.legend()
+
+    ax2.plot(df_pais_1['Tempo'], df_pais_1['depth'], color='blue', alpha=0.7, marker='o', label=pais_selecionado_1)
+    ax2.plot(df_pais_2['Tempo'], df_pais_2['depth'], color='red', alpha=0.7, marker='o', label=pais_selecionado_2)
+    ax2.set_title('Profundidade dos Abalos Sísmicos ao Longo do Tempo')
+    ax2.set_xlabel('Tempo (anos)')
+    ax2.set_ylabel('Profundidade (km)')
+    ax2.grid(True)
+    ax2.set_ylim([0, 700])
+    ax2.legend()
+    plt.tight_layout()
+    plt.show()
